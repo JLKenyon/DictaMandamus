@@ -1,0 +1,4 @@
+dest/bin     : source/*/bin
+dest/lib     : source/*/lib
+dest/include : source/*/include
+dest/share   : source/*/share

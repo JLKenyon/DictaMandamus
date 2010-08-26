@@ -28,7 +28,7 @@ class Application:
             self.process_file(full_name)
     
     def process_file(self, full_name):
-        dname = os.path.dirname(full_name)
+        dname = os.path.dirname (full_name)
         fname = os.path.basename(full_name)
         
         if not os.path.isfile(full_name):
@@ -39,37 +39,52 @@ class Application:
                     self.process_config(fin)
     
     def process_config(self, fin):
-        file_map = dict()
+        dest_source_file_map   = dict()
+        dest_file_list = set()
         config = yaml.load(fin)
         for dest, source_text in config.iteritems():
-            #if not os.path.isdir(dest):
-            #    print "Error, Destination must be a directory"
-            #    print os.getcwd(),dest
+            dest_file_list.update(self.find_files(dest))
+
             if len(glob.glob(dest)) == 1:
                 print "Destination must be unique, may not use wild-cards in destination"
             else:
                 source_paths = glob.glob(source_text)
                 for source in source_paths:
-                    self.build_file_map(dest, source)
-                    #file_map.update(self.build_file_map(dest, source))
-        pass # apply file_map?
+                    dest_source_file_map.update(self.build_dest_source_file_map(dest, source))
+        
+        self.process_data(dest_file_list, dest_source_file_map)
 
+    def process_data(self, dest_file_list, dest_source_file_map):
+        source_file_list = set(dest_source_file_map.iterkeys())
 
-    def build_file_map(self, dest, source):
-        ret = dict()
-        files_list = self.findFiles(source)
-        pprint(files_list)
-        pass
+        cull_file_list    = dest_file_list - source_file_list
+        missing_file_list = source_file_list - dest_file_list
+        common_file_list  = dest_file_list.intersection(source_file_list)
+
+        pprint(cull_file_list)
+        pprint(missing_file_list)
+        pprint(common_file_list)
+
     
-    def findFiles(self, root):
-        vals = {}
+    def build_dest_source_file_map(self, dest, source):
+        dest   = dest.lstrip(os.path.sep)
+        source = source.lstrip(os.path.sep)
+        ret = dict()
+        files_list = self.find_files(source)
+        for fname in files_list:
+            fname = fname.lstrip('/')
+            ret[os.path.join(dest, fname)] = os.path.join(source, fname)
+        return ret
+    
+    def find_files(self, root):
+        vals = set()
         def collector(arg, dirname, fnames):
             for f in fnames:
-                full_name = dirname + os.path.sep + f
+                full_name = os.path.join(dirname, f)
                 if os.path.isfile(full_name) or os.path.islink(full_name):
-                    arg[full_name[len(dirname):]] = full_name # !!!
+                    arg.add(full_name[len(root):])
         os.path.walk(root, collector, vals)
-        return vals
+        return list(vals)
 
     def perform_action(self, command):
         if not self.opts.quiet:
@@ -81,40 +96,10 @@ if __name__ == '__main__':
     app = Application()
     app.main()
 
-##!/usr/bin/env python
-#
-### ------------- CODE -------------
-#
-#import os
-#import sys
-#
-#def findFiles(root):
-#    vals = {}
-#    def collector(arg,dirname,fnames):
-#        for f in fnames:
-#            fullname = dirname+'/'+f
-#            if os.path.isfile(fullname) or os.path.islink(fullname):
-#                arg[fullname[1+len(root):]] = fullname
-#    os.path.walk(root,collector,vals)
-#    return vals
-#
-#def do(s):
-#    if '-q' not in sys.argv:
-#        print(s)
-#    if '-n' not in sys.argv:
-#        os.system(s)
-#
-#def main():
-#    config = dict()
-#    config_file = sys.argv[-1]
-#    assert(os.path.isfile(config_file))
-#    execfile(config_file, config)
-#    directories = config['directories']
-#
 #    di = dict()
-#    map(di.update,[findFiles(d) for d in directories.strip().split()[::-1]])
+#    map(di.update,[find_files(d) for d in directories.strip().split()[::-1]])
 #
-#    defunct_links = filter(lambda a : not os.path.exists(a),findFiles('.'))
+#    defunct_links = filter(lambda a : not os.path.exists(a),find_files('.'))
 #    for dl in defunct_links:
 #        do("rm %s         # Removing defunct link"%(dl))
 #
@@ -128,7 +113,4 @@ if __name__ == '__main__':
 #            if os.path.islink(destination):
 #                do('rm %s         # Removing old link...' % destination)
 #            do('ln -sf %s %s  # ... Generating new link'%(real,destination))
-#
-#if __name__=='__main__':
-#    main()
-#
+
