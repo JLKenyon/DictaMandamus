@@ -44,14 +44,12 @@ class Application:
         config = yaml.load(fin)
         for dest, source_text in config.iteritems():
             dest_file_list.update(self.find_files(dest))
-
             if len(glob.glob(dest)) == 1:
                 print "Destination must be unique, may not use wild-cards in destination"
             else:
                 source_paths = glob.glob(source_text)
                 for source in source_paths:
                     dest_source_file_map.update(self.build_dest_source_file_map(dest, source))
-        
         self.process_data(dest_file_list, dest_source_file_map)
 
     def process_data(self, dest_file_list, dest_source_file_map):
@@ -61,18 +59,30 @@ class Application:
         missing_file_list = source_file_list - dest_file_list
         common_file_list  = dest_file_list.intersection(source_file_list)
 
-        pprint(cull_file_list)
-        pprint(missing_file_list)
-        pprint(common_file_list)
+        directories = set([os.path.dirname(os.path.realpath(x)) for x in missing_file_list])
+        for d in directories:
+            if not os.path.isdir(d):
+                self.create_directory(d)
 
-    
+        for fname in cull_file_list:
+            self.remove_link(fname)
+
+        for fname in missing_file_list:
+            self.create_link(dest_source_file_map[fname], fname)
+
+        for fname in common_file_list:
+            if os.path.realpath(fname) == os.path.realpath(dest_source_file_map[fname]):
+                print "We're good!"
+            else:
+                self.update_link(dest_source_file_map[fname], fname)
+
     def build_dest_source_file_map(self, dest, source):
         dest   = dest.lstrip(os.path.sep)
         source = source.lstrip(os.path.sep)
         ret = dict()
         files_list = self.find_files(source)
         for fname in files_list:
-            fname = fname.lstrip('/')
+            fname = fname.lstrip(os.path.sep)
             ret[os.path.join(dest, fname)] = os.path.join(source, fname)
         return ret
     
@@ -86,6 +96,25 @@ class Application:
         os.path.walk(root, collector, vals)
         return list(vals)
 
+    # File System action wrappers
+    def create_directory(self, directory):
+        directory = os.path.realpath(directory)
+        self.perform_action('mkdir -p %(directory)s'%locals())
+
+    def remove_link(self, fname):
+        fname = os.path.realpath(fname)
+        self.perform_action('rm %(fname)s'%locals())
+
+    def create_link(self, source, dest):
+        source = os.path.realpath(source)
+        dest   = os.path.realpath(dest)
+        self.perform_action('ln -sf %(source)s %(dest)s'%locals())
+
+    def update_link(self, source, dest):
+        self.remove_link(dest)
+        self.create_link(source,dest)
+
+    # Action wrapper
     def perform_action(self, command):
         if not self.opts.quiet:
             print command
@@ -95,22 +124,4 @@ class Application:
 if __name__ == '__main__':
     app = Application()
     app.main()
-
-#    di = dict()
-#    map(di.update,[find_files(d) for d in directories.strip().split()[::-1]])
-#
-#    defunct_links = filter(lambda a : not os.path.exists(a),find_files('.'))
-#    for dl in defunct_links:
-#        do("rm %s         # Removing defunct link"%(dl))
-#
-#    for relpath in set([os.path.dirname(x) for x in di.iterkeys()]):
-#        if relpath != '':
-#            if not os.path.isdir(relpath):
-#                do("mkdir -p %s   # Making missing directory"%(relpath))
-#    
-#    for destination,real in di.iteritems():
-#        if not os.path.realpath(destination) == os.path.realpath(real):
-#            if os.path.islink(destination):
-#                do('rm %s         # Removing old link...' % destination)
-#            do('ln -sf %s %s  # ... Generating new link'%(real,destination))
 
