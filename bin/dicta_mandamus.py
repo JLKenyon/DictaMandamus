@@ -5,6 +5,7 @@ import sys
 import glob
 import os
 import argparse
+import itertools
 
 from pprint import pprint
 
@@ -52,7 +53,12 @@ class Application:
             if len(glob.glob(dest)) > 1:
                 print "Destination must be unique, may not use wild-cards in destination"
             else:
-                source_paths = glob.glob(source_text)
+                if type(source_text) is str:
+                    source_paths = glob.glob(source_text)
+                elif type(source_text) is list:
+                    flatten = lambda x : list(itertools.chain.from_iterable(x))
+                    source_paths = flatten([glob.glob(x) for x in source_text])
+
                 for source in source_paths:
                     dest_source_file_map.update(self.build_dest_source_file_map(dest, source))
         self.process_data(dest_file_map, dest_source_file_map)

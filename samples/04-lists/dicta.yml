@@ -1,0 +1,3 @@
+dest/things:
+    - source/alpha
+    - source/beta
