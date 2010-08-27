@@ -13,9 +13,13 @@ class in_directory:
         self.new_dir = new_directory
         self.old_dir = os.getcwd()
     def __enter__(self):
-        os.chdir(self.new_dir)
+        try:
+            os.chdir(self.new_dir)
+        except: pass
     def __exit__(self, type, value, traceback):
-        os.chdir(self.old_dir)
+        try:
+            os.chdir(self.old_dir)
+        except: pass
 
 class Application:
     def main(self):
@@ -39,75 +43,80 @@ class Application:
                     self.process_config(fin)
     
     def process_config(self, fin):
-        dest_source_file_map   = dict()
-        dest_file_list = set()
+        dest_source_file_map = dict()
+        dest_file_map        = dict()
+
         config = yaml.load(fin)
         for dest, source_text in config.iteritems():
-            dest_file_list.update(self.find_files(dest))
-            if len(glob.glob(dest)) == 1:
+            dest_file_map.update(self.find_files(dest))
+            if len(glob.glob(dest)) > 1:
                 print "Destination must be unique, may not use wild-cards in destination"
             else:
                 source_paths = glob.glob(source_text)
                 for source in source_paths:
                     dest_source_file_map.update(self.build_dest_source_file_map(dest, source))
-        self.process_data(dest_file_list, dest_source_file_map)
+        self.process_data(dest_file_map, dest_source_file_map)
 
-    def process_data(self, dest_file_list, dest_source_file_map):
-        source_file_list = set(dest_source_file_map.iterkeys())
-
-        cull_file_list    = dest_file_list - source_file_list
-        missing_file_list = source_file_list - dest_file_list
-        common_file_list  = dest_file_list.intersection(source_file_list)
-
-        directories = set([os.path.dirname(os.path.realpath(x)) for x in missing_file_list])
+    def process_data(self, dest_file_map, dest_source_file_map):
+        dest_file_set   = set(dest_file_map.iterkeys())
+        source_file_set = set(dest_source_file_map.iterkeys())
+        
+        cull_file_set    = dest_file_set - source_file_set
+        missing_file_set = source_file_set - dest_file_set
+        common_file_set  = dest_file_set.intersection(source_file_set)
+        
+        directories = set([os.path.dirname(os.path.realpath(x)) for x in missing_file_set])
         for d in directories:
             if not os.path.isdir(d):
                 self.create_directory(d)
-
-        for fname in cull_file_list:
+        
+        for fname in cull_file_set:
             self.remove_link(fname)
-
-        for fname in missing_file_list:
+        
+        for fname in missing_file_set:
             self.create_link(dest_source_file_map[fname], fname)
-
-        for fname in common_file_list:
+        
+        for fname in common_file_set:
             if os.path.realpath(fname) == os.path.realpath(dest_source_file_map[fname]):
-                print "We're good!"
+                pass
+                #print "We're good!"
             else:
                 self.update_link(dest_source_file_map[fname], fname)
-
+    
     def build_dest_source_file_map(self, dest, source):
         dest   = dest.lstrip(os.path.sep)
         source = source.lstrip(os.path.sep)
         ret = dict()
-        files_list = self.find_files(source)
+        files_list = self.find_files(source).values()
         for fname in files_list:
             fname = fname.lstrip(os.path.sep)
             ret[os.path.join(dest, fname)] = os.path.join(source, fname)
         return ret
     
     def find_files(self, root):
-        vals = set()
+        vals = dict()
         def collector(arg, dirname, fnames):
             for f in fnames:
                 full_name = os.path.join(dirname, f)
                 if os.path.isfile(full_name) or os.path.islink(full_name):
-                    arg.add(full_name[len(root):])
+                    #arg.add(full_name[len(root):])
+                    #print '$',full_name,root
+                    arg[full_name] = full_name[len(root):]
         os.path.walk(root, collector, vals)
-        return list(vals)
-
+        return vals
+    
     # File System action wrappers
     def create_directory(self, directory):
-        directory = os.path.realpath(directory)
+        directory = os.path.abspath(directory)
         self.perform_action('mkdir -p %(directory)s'%locals())
 
     def remove_link(self, fname):
-        fname = os.path.realpath(fname)
+        fname = os.path.abspath(fname)
         self.perform_action('rm %(fname)s'%locals())
 
     def create_link(self, source, dest):
-        source = os.path.realpath(source)
-        dest   = os.path.realpath(dest)
+        source = os.path.abspath(source)
+        dest   = os.path.abspath(dest)
         self.perform_action('ln -sf %(source)s %(dest)s'%locals())
 
     def update_link(self, source, dest):
