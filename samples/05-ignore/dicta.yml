@@ -1,0 +1,5 @@
+ignore: file_delta_bin.txt
+dest/bin     : source/*/bin
+dest/lib     : source/*/lib
+dest/include : source/*/include
+dest/share   : source/*/share

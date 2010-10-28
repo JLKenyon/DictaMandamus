@@ -47,7 +47,16 @@ class Application:
         dest_source_file_map = dict()
         dest_file_map        = dict()
 
+        ignore_files = list()
+
         config = yaml.load(fin)
+        if config.has_key('ignore'):
+            ignore_stmt = config['ignore']
+            if type(ignore_stmt) is list():
+                ignore_files = ignore_stmt
+            else:
+                ignore_files.append(ignore_stmt)
+            del(config['ignore'])
         for dest, source_text in config.iteritems():
             dest_file_map.update(self.find_files(dest))
             if len(glob.glob(dest)) > 1:
@@ -61,6 +70,11 @@ class Application:
 
                 for source in source_paths:
                     dest_source_file_map.update(self.build_dest_source_file_map(dest, source))
+
+        for key in dest_source_file_map.keys():
+            if key in ignore_files or os.path.basename(key) in ignore_files:
+                del(dest_source_file_map[key])
+
         self.process_data(dest_file_map, dest_source_file_map)
 
     def process_data(self, dest_file_map, dest_source_file_map):
@@ -77,7 +91,8 @@ class Application:
                 self.create_directory(d)
         
         for fname in cull_file_set:
-            self.remove_link(fname)
+            if os.path.islink(fname):
+                self.remove_link(fname)
         
         for fname in missing_file_set:
             self.create_link(dest_source_file_map[fname], fname)
