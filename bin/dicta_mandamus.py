@@ -129,16 +129,16 @@ class Application:
     # File System action wrappers
     def create_directory(self, directory):
         directory = os.path.abspath(directory)
-        self.perform_action('mkdir -p %(directory)s'%locals())
+        self.perform_action("mkdir -p '%(directory)s'"%locals())
 
     def remove_link(self, fname):
         fname = os.path.abspath(fname)
-        self.perform_action('rm %(fname)s'%locals())
+        self.perform_action("rm '%(fname)s'"%locals())
 
     def create_link(self, source, dest):
         source = os.path.abspath(source)
         dest   = os.path.abspath(dest)
-        self.perform_action('ln -sf %(source)s %(dest)s'%locals())
+        self.perform_action("ln -sf '%(source)s' '%(dest)s'"%locals())
 
     def update_link(self, source, dest):
         self.remove_link(dest)
